@@ -573,22 +573,30 @@ class Model(nn.Module):
 # Separate function to convert onnx models to tflite format
 def convert_onnx_to_tflite(onnx_model_path, output_path):
     """Converts an ONNX version of an openwakeword model to the Tensorflow tflite format."""
-    # imports
-    import onnx
-    from onnx_tf.backend import prepare
-    import tensorflow as tf
+    try:
+        import onnx2tf
 
-    # Convert to tflite from onnx model
-    onnx_model = onnx.load(onnx_model_path)
-    tf_rep = prepare(onnx_model, device="CPU")
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        tf_rep.export_graph(os.path.join(tmp_dir, "tf_model"))
-        converter = tf.lite.TFLiteConverter.from_saved_model(os.path.join(tmp_dir, "tf_model"))
-        tflite_model = converter.convert()
+        # Convert ONNX to TFLite
+        onnx2tf.convert(
+            input_onnx_file_path=onnx_model_path,
+            output_folder_path=os.path.dirname(output_path),
+            copy_onnx_input_output_names_to_tflite=True,
+            non_verbose=True
+        )
 
-        logging.info(f"####\nSaving tflite mode to '{output_path}'")
-        with open(output_path, 'wb') as f:
-            f.write(tflite_model)
+        # onnx2tf typically outputs model_float32.tflite, so we need to rename it
+        default_output = os.path.join(os.path.dirname(output_path), "model_float32.tflite")
+        if os.path.exists(default_output):
+            os.rename(default_output, output_path)
+            print(f"Successfully converted {onnx_model_path} to {output_path}")
+        else:
+            print(f"Warning: Expected output file {default_output} not found")
+
+    except ImportError:
+        print("onnx2tf not available, skipping TFLite conversion")
+    except Exception as e:
+        print(f"Error during ONNX to TFLite conversion: {e}")
+        print("Skipping TFLite conversion, ONNX model should still work")
 
     return None
 
